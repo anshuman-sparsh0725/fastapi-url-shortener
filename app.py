@@ -8,17 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, HttpUrl
 from typing import List
+from contextlib import asynccontextmanager # <-- 1. IMPORT THIS
 
 # --- Configuration & App Initialization ---
 DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 DATABASE = os.path.join(DATA_DIR, 'shortener.db')
 
-app = FastAPI()
-
-# --- Auto-DB Initialization on Startup ---
-@app.on_event("startup")
-def startup_event():
+# --- 2. CREATE THE NEW LIFESPAN HANDLER ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This code runs on startup
     if not os.path.exists(DATABASE):
         print("Database not found. Initializing...")
         db = sqlite3.connect(DATABASE)
@@ -28,12 +28,22 @@ def startup_event():
         db.commit()
         db.close()
         print("Database initialized successfully.")
+    
+    yield # The application runs here
+    
+    # Code here would run on shutdown (not needed for this app)
+
+# --- 3. INITIALIZE FASTAPI WITH THE LIFESPAN HANDLER ---
+app = FastAPI(lifespan=lifespan)
+
+# --- 4. THE OLD @app.on_event("startup") FUNCTION IS NOW REMOVED ---
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+# --- The rest of your code remains exactly the same ---
 class URLItem(BaseModel):
     url: HttpUrl
 
